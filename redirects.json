@@ -1,4 +1,5 @@
 {
   "default": "https://google.com",
-  "posteitaliane": "https://www.poste.it"
+  "posteit": "https://www.poste.it",
+  "postaliane.it": "www.posteitaliane.it"
 }
