@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Reindirizzamento</title>
   
+  <!-- Libreria avanzata per QR Code con Logo e Colori -->
   <script type="text/javascript" src="https://unpkg.com/qr-code-styling@1.5.0/lib/qr-code-styling.js"></script>
 
   <style>
@@ -32,24 +33,27 @@
 </head>
 <body>
 
-  <p id="msg-redirect" style="text-align: center; margin-top: 40px;">Reindirizzamento in corso...</p>
+  <p id="msg-redirect" style="text-align: center; margin-top: 40px; font-family: sans-serif;">Reindirizzamento in corso...</p>
 
+  <!-- MODALE ADMIN -->
   <div id="adminModal" class="modal-overlay">
     <div class="modal-content">
       <h2>⚙️ Gestione & Generatore QR Code Personalizzato</h2>
       
       <div style="margin-bottom: 15px;">
         <label style="font-size: 12px; display: block; margin-bottom: 4px; font-weight: 600;">GitHub Personal Access Token:</label>
-        <input type="password" id="ghToken" placeholder="ghp_xxxxxxxxxxxx" style="width: 95%;">
+        <input type="password" id="ghToken" placeholder="github_pat_xxxxxxxxxxxx" style="width: 95%;">
       </div>
 
       <div id="linksContainer"></div>
 
       <button type="button" onclick="aggiungiRiga()" style="background: #10b981; margin-top: 8px;">+ Aggiungi Nuovo Link</button>
 
+      <!-- Area Personalizzazione e Anteprima QR Code -->
       <div id="qrPreviewContainer">
         <h3 id="qrTitle" style="margin: 0 0 10px 0; font-size: 14px;"></h3>
 
+        <!-- Controlli Stile QR Code -->
         <div class="qr-custom-panel">
           <div class="qr-custom-item">
             <label>Colore QR:</label>
@@ -65,6 +69,7 @@
           </div>
         </div>
 
+        <!-- Canvas dove viene disegnato il QR -->
         <div id="canvasContainer"></div>
         <br>
         
@@ -82,9 +87,10 @@
   </div>
 
   <script>
-    const REPO_OWNER = "TUO_USERNAME";
-    const REPO_NAME = "TUO_REPOSITORY";
-    const ADMIN_KEY = "segreto123";
+    // CONFIGURAZIONE REPOSITORY
+    const REPO_OWNER = "fabiusai";
+    const REPO_NAME = "QRcode";
+    const ADMIN_KEY = "segreto123"; // Puoi cambiare questa password per accedere all'Admin
 
     let currentData = {};
     let fileSha = "";
@@ -96,21 +102,29 @@
       const urlParams = new URLSearchParams(window.location.search);
       const adminParam = urlParams.get('admin');
 
+      // 1. CONTROLLO ADMIN IMMEDIATO (Priorità assoluta)
       if (adminParam === ADMIN_KEY) {
         document.getElementById('msg-redirect').style.display = 'none';
         document.getElementById('adminModal').style.display = 'flex';
         await caricaDatiAdmin();
-        return;
+        return; // Si ferma qui e NON esegue il reindirizzamento
       }
 
+      // 2. REINDIRIZZAMENTO UTENTE NORMALE
       try {
         const res = await fetch('./redirects.json?v=' + Date.now());
+        if (!res.ok) throw new Error("Impossibile caricare redirects.json");
+        
         const redirects = await res.json();
         let chiave = (urlParams.keys().next().value || urlParams.get('id') || window.location.hash.replace('#', '')).toLowerCase();
+        
         const destinazione = redirects[chiave] || redirects['default'] || 'https://google.com';
         window.location.replace(destinazione);
       } catch (e) {
-        document.getElementById('msg-redirect').innerText = "Errore nel reindirizzamento.";
+        document.getElementById('msg-redirect').innerHTML = `
+          <p>Errore nel reindirizzamento.</p>
+          <p style="font-size: 12px;"><a href="?admin=${ADMIN_KEY}">Accedi al Pannello Admin</a></p>
+        `;
       }
     }
 
@@ -122,12 +136,25 @@
         const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/redirects.json`, {
           headers: token ? { 'Authorization': `token ${token}` } : {}
         });
+        
+        if (!res.ok) {
+          document.getElementById('status').innerText = "File redirects.json non trovato su GitHub. Crea un nuovo link per generarlo.";
+          currentData = { "default": "https://google.com" };
+          renderForm();
+          return;
+        }
+
         const data = await res.json();
         fileSha = data.sha;
-        currentData = JSON.parse(atob(data.content));
+        // Decodifica il contenuto UTF-8 da Base64
+        const contentDecoded = decodeURIComponent(escape(atob(data.content)));
+        currentData = JSON.parse(contentDecoded);
         renderForm();
+        document.getElementById('status').innerText = "✅ Dati caricati da GitHub.";
       } catch (e) {
-        document.getElementById('status').innerText = "Errore nel caricamento dei dati da GitHub.";
+        document.getElementById('status').innerText = "Attenzione: File JSON vuoto o errore di lettura.";
+        currentData = { "default": "https://google.com" };
+        renderForm();
       }
     }
 
@@ -155,7 +182,7 @@
       document.getElementById('linksContainer').appendChild(creaRigaInput());
     }
 
-    // GESTIONE GENERAZIONE E STILE QR CODE
+    // GENERATORE QR CODE CON LOGO E COLORI
     function mostraQR(btn) {
       const row = btn.parentElement;
       const slug = row.querySelector('.slug').value.trim().toLowerCase();
@@ -167,7 +194,6 @@
       document.getElementById('qrPreviewContainer').style.display = 'block';
       document.getElementById('qrTitle').innerText = `Personalizza QR Code per: ?${slug}`;
 
-      // Inizializza l'oggetto QR con Stile Avanzato
       qrCodeStyling = new QRCodeStyling({
         width: 260,
         height: 260,
@@ -176,17 +202,17 @@
         imageOptions: {
           crossOrigin: "anonymous",
           margin: 5,
-          imageSize: 0.3 // Dimensione del logo al centro (30%)
+          imageSize: 0.3
         },
         dotsOptions: {
           color: document.getElementById('qrColorDots').value,
-          type: "rounded" // Moduli leggermente arrotondati (stile moderno)
+          type: "rounded"
         },
         backgroundOptions: {
           color: document.getElementById('qrColorBg').value,
         },
         qrOptions: {
-          errorCorrectionLevel: "H" // Massimo livello di correzione per garantire la lettura con il logo
+          errorCorrectionLevel: "H"
         }
       });
 
@@ -195,7 +221,6 @@
       qrCodeStyling.append(container);
     }
 
-    // Aggiorna in tempo reale i colori quando cambi i selettori
     function aggiornaStileQR() {
       if (!qrCodeStyling) return;
       qrCodeStyling.update({
@@ -205,7 +230,6 @@
       });
     }
 
-    // Converte il logo caricato in base64 e lo applica al QR
     function caricaLogo(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -219,13 +243,14 @@
 
     function scaricaQR(formato) {
       if (!qrCodeStyling) return;
-      const slugInput = document.querySelector('#qrPreviewContainer h3').innerText.replace('Personalizza QR Code per: ?', '');
+      const slugText = document.querySelector('#qrPreviewContainer h3').innerText.replace('Personalizza QR Code per: ?', '');
       qrCodeStyling.download({
-        name: `qrcode-${slugInput}`,
+        name: `qrcode-${slugText}`,
         extension: formato
       });
     }
 
+    // SALVATAGGIO SU GITHUB VIA REST API
     async function salvaSuGithub() {
       const token = document.getElementById('ghToken').value.trim();
       if (!token) return alert("Inserisci il Personal Access Token di GitHub!");
@@ -240,7 +265,19 @@
         if (slug && url) nuoviRedirects[slug] = url;
       });
 
-      const contentEncoded = btoa(JSON.stringify(nuoviRedirects, null, 2));
+      // Codifica UTF-8 in Base64 per GitHub
+      const jsonString = JSON.stringify(nuoviRedirects, null, 2);
+      const contentEncoded = btoa(unescape(encodeURIComponent(jsonString)));
+
+      const bodyPayload = {
+        message: "Aggiornamento reindirizzamenti via Modale Admin",
+        content: contentEncoded
+      };
+
+      // Se il file esiste già su GitHub, inserisce lo SHA per aggiornarlo
+      if (fileSha) {
+        bodyPayload.sha = fileSha;
+      }
 
       try {
         const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/redirects.json`, {
@@ -249,25 +286,23 @@
             'Authorization': `token ${token}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            message: "Aggiornamento reindirizzamenti via Modale Admin",
-            content: contentEncoded,
-            sha: fileSha
-          })
+          body: JSON.stringify(bodyPayload)
         });
 
         if (res.ok) {
           const resData = await res.json();
           fileSha = resData.content.sha;
-          document.getElementById('status').innerText = "✅ Salvato con successo!";
+          document.getElementById('status').innerText = "✅ Salvato con successo su GitHub!";
         } else {
-          document.getElementById('status').innerText = "❌ Errore durante il salvataggio.";
+          const errData = await res.json();
+          document.getElementById('status').innerText = "❌ Errore: " + (errData.message || "Verifica il Token.");
         }
       } catch (e) {
-        document.getElementById('status').innerText = "❌ Errore di rete.";
+        document.getElementById('status').innerText = "❌ Errore di rete durante il salvataggio.";
       }
     }
 
+    // Avvia l'applicazione
     init();
   </script>
 </body>
